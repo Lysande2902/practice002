@@ -20,19 +20,19 @@ class LoginScreen extends StatelessWidget {
         body: BlocListener<LoginCubit, LoginState>(
           listener: (context, state) {
             if (state.status == LoginStatus.success) {
-              ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(const SnackBar(content: Text('Login Successful!')));
               Navigator.of(context).pushReplacement(MaterialPageRoute(
                 builder: (_) => const HomeScreen(),
               ));
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(const SnackBar(content: Text('¡Inicio de sesión exitoso!')));
             } else if (state.status == LoginStatus.failure) {
               ScaffoldMessenger.of(context)
                 ..hideCurrentSnackBar()
                 ..showSnackBar(SnackBar(
                   backgroundColor: Theme.of(context).colorScheme.error,
                   content: Text(
-                    state.errorMessage ?? 'Login Failed',
+                    state.errorMessage ?? 'Error al iniciar sesión',
                     style: TextStyle(
                       fontSize: 16.0,
                       color: Theme.of(context).colorScheme.onError,
@@ -64,6 +64,43 @@ class _LoginFormState extends State<LoginForm> {
   final _formKey = GlobalKey<FormState>();
   bool _isPasswordObscured = true;
 
+  // Nuevas variables de estado para la validez de los campos
+  bool _isEmailValid = false;
+  bool _isPasswordValid = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Escuchar cambios en los controladores para actualizar el estado de validación
+    _emailController.addListener(_updateValidationStatus);
+    _passwordController.addListener(_updateValidationStatus);
+  }
+
+  // Función auxiliar para validar el email
+  String? _validateEmail(String? value) {
+    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
+    if (value == null || value.isEmpty || !emailRegex.hasMatch(value)) {
+      return 'Por favor, introduce un email válido';
+    }
+    return null;
+  }
+
+  // Función auxiliar para validar la contraseña
+  String? _validatePassword(String? value) {
+    if (value == null || value.length < 6) {
+      return 'La contraseña debe tener al menos 6 caracteres';
+    }
+    return null;
+  }
+
+  // Actualiza el estado de validez de los campos y reconstruye el widget si es necesario
+  void _updateValidationStatus() {
+    setState(() {
+      _isEmailValid = _validateEmail(_emailController.text) == null;
+      _isPasswordValid = _validatePassword(_passwordController.text) == null;
+    });
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -86,44 +123,77 @@ class _LoginFormState extends State<LoginForm> {
   Widget build(BuildContext context) {
     return BlocBuilder<LoginCubit, LoginState>(
       builder: (context, state) {
+        final bool isFormValid = _isEmailValid && _isPasswordValid;
         final isLoading = state.status == LoginStatus.loading;
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: SingleChildScrollView(
-            child: Form(
-              key: _formKey,
-              autovalidateMode: AutovalidateMode.onUserInteraction,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  const _Logo(),
-                  const SizedBox(height: 24),
-                  _EmailField(
-                    controller: _emailController,
-                    focusNode: _emailFocusNode,
-                    enabled: !isLoading,
-                    onFieldSubmitted: (_) {
-                      FocusScope.of(context).requestFocus(_passwordFocusNode);
-                    },
+        // El botón de login estará habilitado si el formulario es válido Y no está cargando
+        final bool isLoginButtonEnabled = isFormValid && !isLoading;
+
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: SingleChildScrollView(
+                child: Form(
+                  key: _formKey,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      const _Logo(),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Bienvenido de nuevo',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Inicia sesión para continuar',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 32),
+                      _EmailField(
+                        controller: _emailController,
+                        focusNode: _emailFocusNode,
+                        enabled: !isLoading,
+                        onFieldSubmitted: (_) {
+                          FocusScope.of(context).requestFocus(_passwordFocusNode);
+                        },
+                        validator: _validateEmail, // Usar el validador auxiliar
+                        onChanged: (_) => _updateValidationStatus(), // Actualizar estado al cambiar
+                      ),
+                      const SizedBox(height: 16),
+                      _PasswordField(
+                        controller: _passwordController,
+                        focusNode: _passwordFocusNode,
+                        isObscured: _isPasswordObscured,
+                        // El campo de contraseña se habilita si no está cargando Y el email es válido
+                        enabled: !isLoading && _isEmailValid,
+                        onFieldSubmitted: (_) => _onLoginPressed(),
+                        onToggleObscure: () {
+                          setState(() {
+                            _isPasswordObscured = !_isPasswordObscured;
+                          });
+                        },
+                        validator: _validatePassword, // Usar el validador auxiliar
+                        onChanged: (_) => _updateValidationStatus(), // Actualizar estado al cambiar
+                      ),
+                      const SizedBox(height: 8),
+                      const _ForgotPasswordButton(),
+                      const SizedBox(height: 8),
+                      const _RememberMeCheckbox(),
+                      const SizedBox(height: 24),
+                      _LoginButton(
+                        onPressed: isLoginButtonEnabled ? _onLoginPressed : null,
+                      ),
+                      const SizedBox(height: 24),
+                      const _SignUpPrompt(),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  _PasswordField(
-                    controller: _passwordController,
-                    focusNode: _passwordFocusNode,
-                    isObscured: _isPasswordObscured,
-                    enabled: !isLoading,
-                    onFieldSubmitted: (_) => _onLoginPressed(),
-                    onToggleObscure: () {
-                      setState(() {
-                        _isPasswordObscured = !_isPasswordObscured;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const _RememberMeCheckbox(),
-                  const SizedBox(height: 24),
-                  _LoginButton(onPressed: _onLoginPressed),
-                ],
+                ),
               ),
             ),
           ),
@@ -139,9 +209,9 @@ class _Logo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 300,
-      width: 300,
-      child: Image.asset('assets/images/logo_app.png'),
+      height: 150,
+      width: 150,
+      child: Image.asset('assets/images/logo_app.png', fit: BoxFit.contain),
     );
   }
 }
@@ -152,11 +222,15 @@ class _EmailField extends StatelessWidget {
     required this.focusNode,
     required this.onFieldSubmitted,
     this.enabled = true,
+    this.validator, // Añadir parámetro para el validador
+    this.onChanged, // Añadir parámetro para onChanged
   });
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onFieldSubmitted;
   final bool enabled;
+  final FormFieldValidator<String>? validator;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -165,16 +239,12 @@ class _EmailField extends StatelessWidget {
       controller: controller,
       focusNode: focusNode,
       onFieldSubmitted: onFieldSubmitted,
-      decoration: const InputDecoration(
-        labelText: 'Email Address',
+      onChanged: onChanged, // Pasar onChanged al TextFormField
+      decoration: InputDecoration(
+        labelText: 'Correo Electrónico',
+        prefixIcon: Icon(Icons.email_outlined, color: Theme.of(context).colorScheme.primary),
       ),
-      validator: (value) {
-        final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
-        if (value == null || !emailRegex.hasMatch(value)) {
-          return 'Please enter a valid email';
-        }
-        return null;
-      },
+      validator: validator, // Usar el validador pasado
       keyboardType: TextInputType.emailAddress,
     );
   }
@@ -188,14 +258,18 @@ class _PasswordField extends StatelessWidget {
     required this.onFieldSubmitted,
     required this.onToggleObscure,
     this.enabled = true,
+    this.validator, // Añadir parámetro para el validador
+    this.onChanged, // Añadir parámetro para onChanged
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
+  final FormFieldValidator<String>? validator; // Declarar el validador
   final bool isObscured;
   final ValueChanged<String> onFieldSubmitted;
   final VoidCallback onToggleObscure;
   final bool enabled;
+  final ValueChanged<String>? onChanged; // Añadir el campo onChanged aquí
 
   @override
   Widget build(BuildContext context) {
@@ -203,24 +277,39 @@ class _PasswordField extends StatelessWidget {
       controller: controller,
       focusNode: focusNode,
       onFieldSubmitted: onFieldSubmitted,
+      onChanged: onChanged, // Pasar onChanged al TextFormField
       enabled: enabled,
       obscureText: isObscured,
       decoration: InputDecoration(
-        labelText: 'Password',
+        labelText: 'Contraseña',
+        prefixIcon: Icon(Icons.lock_outline, color: Theme.of(context).colorScheme.primary),
         suffixIcon: IconButton(
           icon: Icon(isObscured ? Icons.visibility_off : Icons.visibility),
           onPressed: onToggleObscure,
         ),
       ),
-      validator: (value) {
-        if (value == null || value.length < 6) {
-          return 'Password must be at least 6 characters';
-        }
-        return null;
-      },
+      validator: validator, // Usar el validador pasado
     );
   }
 }
+
+class _ForgotPasswordButton extends StatelessWidget {
+  const _ForgotPasswordButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: TextButton(
+        onPressed: () {
+          // TODO: Implementar lógica de recuperación de contraseña
+        },
+        child: const Text('¿Olvidaste tu contraseña?'),
+      ),
+    );
+  }
+}
+
 
 class _RememberMeCheckbox extends StatelessWidget {
   const _RememberMeCheckbox();
@@ -230,7 +319,7 @@ class _RememberMeCheckbox extends StatelessWidget {
     return BlocBuilder<LoginCubit, LoginState>(
       builder: (context, state) {
         return CheckboxListTile(
-          title: const Text('Remember Me'),
+          title: const Text('Recordarme'),
           value: state.isRememberMeChecked,
           onChanged: (newValue) {
             context.read<LoginCubit>().toggleRememberMe(newValue ?? false);
@@ -245,25 +334,52 @@ class _RememberMeCheckbox extends StatelessWidget {
 
 class _LoginButton extends StatelessWidget {
   const _LoginButton({required this.onPressed});
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<LoginCubit, LoginState>(
       builder: (context, state) {
-        return ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            shape: const StadiumBorder(),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+        return SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            onPressed: onPressed,
+            child: state.status == LoginStatus.loading
+                ? const SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                  )
+                : const Text('INICIAR SESIÓN', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-          onPressed: state.status == LoginStatus.loading ? null : onPressed,
-          child: state.status == LoginStatus.loading
-              ? const CircularProgressIndicator(color: Colors.white)
-              : const Text('Login'),
         );
       },
+    );
+  }
+}
+
+class _SignUpPrompt extends StatelessWidget {
+  const _SignUpPrompt();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text('¿No tienes una cuenta?'),
+        TextButton(
+          onPressed: () { /* TODO: Navegar a la pantalla de registro */ },
+          child: const Text('Regístrate'),
+        ),
+      ],
     );
   }
 }
