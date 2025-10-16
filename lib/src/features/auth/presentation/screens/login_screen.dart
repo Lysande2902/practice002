@@ -14,9 +14,7 @@ class LoginScreen extends StatelessWidget {
       create: (context) => LoginCubit(authRepository: AuthRepository())
         ..init(),
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Login'),
-        ),
+        backgroundColor: Colors.white,
         body: BlocListener<LoginCubit, LoginState>(
           listener: (context, state) {
             if (state.status == LoginStatus.success) {
